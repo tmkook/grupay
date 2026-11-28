@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'none'; style-src 'sha256-J/01T/qo+/g5X+2bE0kixi/3RHzCdPtl0hsB4+14Jwc='; object-src 'none'; base-uri 'none'">
+  <title>Grupay · 商户服务</title>
+<style>
+:root {
+  color-scheme: light;
+  font: 16px/1.6 Inter, -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+  color: #19283e;
+  background: #f7f9fc;
+}
+* { box-sizing: border-box; }
+body { margin: 0; }
+main { width: min(100% - 40px, 640px); margin: clamp(38px, 10vh, 104px) auto 40px; }
+header, .tool-heading, .row { display: flex; align-items: center; }
+header { gap: 12px; margin-bottom: 32px; }
+h1, h2, p { margin: 0; }
+h1 { font-size: 1.65rem; line-height: 1; letter-spacing: -.04em; }
+header > span { margin-left: auto; color: #53627a; font-size: .9rem; }
+a { color: #214fab; }
+.tool {
+  display: block; border-radius: 18px; padding: clamp(24px, 5vw, 38px);
+  background: linear-gradient(110deg, #173d85, #2257ac); color: white; text-decoration: none;
+}
+.tool:hover { background: #1c4693; }
+.tool-heading, .row { justify-content: space-between; gap: 16px; }
+.tool h2 { font-size: clamp(1.65rem, 4vw, 2.1rem); line-height: 1.2; }
+.arrow { display: grid; place-items: center; border: 1px solid #ffffff66; border-radius: 50%; width: 38px; height: 38px; font-size: 1.35rem; }
+.tool p { margin: 9px 0 30px; color: #e0eafa; }
+section { margin-top: 16px; background: white; padding: 0 clamp(18px, 4vw, 30px); border: 1px solid #dce3ed; border-radius: 16px; }
+.row { padding: 21px 0; }
+.row + .row { border-top: 1px solid #e4e9f0; }
+.row h2 { font-size: 1rem; }
+.detail { font-size: .86rem; white-space: nowrap; color: #204d9a; text-decoration: none; padding-block: 9px; }
+.detail:hover { text-decoration: underline; }
+:focus-visible { outline: 3px solid #5082d6; outline-offset: 3px; }
+</style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Grupay</h1>
+      <span>商户服务</span>
+    </header>
+    <a class="tool" href="/tools">
+      <div class="tool-heading">
+        <h2>对接工具</h2>
+        <span class="arrow" aria-hidden="true">↗</span>
+      </div>
+      <p>生成签名请求，测试下单并查看收银台。</p>
+    </a>
+    <section aria-label="服务支持">
+      <div class="row">
+        <h2>联系客服</h2>
+        <a class="detail" href="https://t.me/grupay" target="_blank" rel="noopener noreferrer">Telegram @grupay <span aria-hidden="true">↗</span></a>
+      </div>
+      <div class="row">
+        <h2>服务状态</h2>
+        <a class="detail" href="/api/health" target="_blank" rel="noopener noreferrer">查看详情 <span aria-hidden="true">↗</span></a>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

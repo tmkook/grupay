@@ -1,0 +1,25 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "grupay-ck",
+  "main": "src/index.ts",
+  "minify": true,
+  "compatibility_date": "2026-11-23",
+  "workers_dev": true,
+  "routes": [{ "pattern": "ck.gruhub.cc", "custom_domain": true }],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "grupay-ck",
+      "database_id": "5fac091b-0599-45e3-92ab-c07bab4b9757",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "durable_objects": { "bindings": [{ "name": "DEVICE_SESSIONS", "class_name": "DeviceSessions" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["DeviceSessions"] }],
+  "triggers": { "crons": ["* * * * *"] },
+  "assets": { "directory": "./public", "binding":"ASSETS", "run_worker_first": ["/releases/*"] },
+  "observability": {
+    "enabled": true
+  }
+
+}

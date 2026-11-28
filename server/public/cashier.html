@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Grupay 收银台</title>
+  <!-- 静态页托管到其他域名时，在这里填写 WSS 的源；留空表示同源 -->
+  <meta name="grupay-api" content="">
+  <style>
+:root {
+  font: 16px/1.5 system-ui, sans-serif;
+  color: #293442;
+  background: #fafaf8;
+  --blue: #46658a;
+  --line: #dfe3e4;
+}
+* { box-sizing: border-box; }
+body { margin: 0; }
+main { max-width: 490px; margin: clamp(16px, 4vw, 48px) auto; padding: 0 16px; text-align: center; }
+.card { box-shadow: -4px -4px 12px white, 5px 7px 20px #46546119; background: linear-gradient(145deg, white 55%, #fafaf8); border: 1px solid var(--line); border-radius: 16px; padding: 22px 20px 20px; }
+#phase { display: inline-flex; align-items: center; gap: 7px; margin: 0; padding: 6px 14px; border-radius: 20px; font-size: 15px; font-weight: 700; letter-spacing: .02em; background: #d9e7f8; color: #1b3f6b; box-shadow: inset 0 0 0 1px #bed3ec; }
+#phase::before { content: ''; width: 7px; height: 7px; background: currentColor; border-radius: 50%; }
+#phase.loading::after { content: ''; width: 13px; height: 13px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+h1 { font-size: 15px; font-weight: 500; color: #58646e; margin: 15px 0 2px; }
+.price { font-size: clamp(36px, 9vw, 48px); line-height: 1.3; overflow-wrap: anywhere; }
+.price small { font-size: .52em; font-weight: 650; margin-right: 4px; }
+button, a { font: inherit; cursor: pointer; }
+.number { display: inline-flex; align-items: center; max-width: 100%; padding: 10px 0; margin: 4px 0; border: 0; background: transparent; color: #58646e; font-size: 13px; }
+#number { overflow-wrap: anywhere; min-width: 0; }
+.number i, .number i::before { width: 10px; height: 11px; border: 1.5px solid currentColor; border-radius: 2px; background: white; }
+.number i { position: relative; flex-shrink: 0; margin: 0 3px 2px 8px; }
+.number i::before { content: ''; position: absolute; left: 2px; top: 2px; box-sizing: border-box; }
+.timer { padding: 10px; border-radius: 10px; background: #fff3e3; color: #a4570c; font-size: 14px; }
+.timer strong { font-size: 18px; margin-left: 8px; font-variant-numeric: tabular-nums; color: #c2650a; }
+#pay, .secondary { display: block; width: 100%; border-radius: 10px; padding: 11px; }
+#pay { margin-top: 16px; color: white; background: linear-gradient(155deg, #526f90, var(--blue)); box-shadow: inset 0 1px 1px #ffffff48, 2px 4px 9px #46546126; text-decoration: none; font-weight: 650; }
+.secondary { box-shadow: 2px 3px 6px #46546119, -2px -2px 5px white; margin-top: 10px; background: white; color: #354e69; border: 1px solid var(--line); }
+.secondary:disabled, #pay[aria-disabled=true] { opacity: .65; cursor: default; }
+.note, #feedback, #connection { color: #58646e; font-size: 13px; }
+.note { line-height: 1.8; }
+#pay[href]:active, .secondary:enabled:active {
+  transform: translateY(1px);
+  box-shadow: inset 2px 2px 5px #142a5233;
+}
+button:focus-visible, a:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="card" aria-labelledby="label">
+      <p id="phase" role="status" class="loading">正在连接</p>
+      <h1 id="label">订单金额</h1>
+      <div class="price"><small>¥</small><strong id="amount">—</strong></div>
+      <button id="copyNumber" class="number" aria-label="复制订单号" disabled><span id="number">—</span><i aria-hidden="true"></i></button>
+      <div class="timer">支付剩余时间 <strong id="remaining">--:--</strong></div>
+      <a id="pay" role="link" aria-disabled="true" rel="noreferrer">立即支付 <span aria-hidden="true">↗</span></a>
+      <button id="copyLink" class="secondary" disabled>复制支付链接</button>
+    </section>
+    <p class="note">支付完成后页面将自动更新，请勿重复付款。<br>如已扣款，请耐心等待支付结果确认。</p>
+    <p id="connection" role="status"></p>
+    <p id="feedback" role="status"></p>
+  </main>
+  <script type="module">
+const no = new URLSearchParams(location.search).get("order_no");
+const api = new URL(document.querySelector('meta[name="grupay-api"]')?.content || location.origin);
+const el = id => document.getElementById(id);
+const phases = {
+  created: "分配资源中",
+  assigned: "已分配资源",
+  placing: "正在创建订单",
+  placed: "已创建订单",
+  paid: "支付成功",
+  failed: "创建失败",
+  expired: "已超时"
+};
+const pendingPhases = ["created", "assigned", "placing"];
+let order, socket, timer, paymentLink, redirectAt;
+let offset = 0;
+let stopped = false;
+let delay = 1000;
+function setPhase(text, pending) {
+  const phase = el("phase");
+  phase.textContent = text;
+  if (pending) phase.setAttribute("class", "loading");
+  else phase.removeAttribute("class");
+}
+function updateClock() {
+  if (!order) return;
+  const left = Math.max(0, Math.ceil((order.deadline_at - Date.now() - offset) / 1000));
+  const active = pendingPhases.includes(order.status) || order.status === "placed";
+  const remaining = active && Number.isFinite(left) ? left : 0;
+  el("remaining").textContent = !order.deadline_at ? "--:--" :
+    [Math.floor(remaining / 60), remaining % 60].map(n => String(n).padStart(2, "0")).join(":");
+  const url = el("pay").href;
+  if (!url || order.status !== "placed" || remaining === 0) {
+    paymentLink = redirectAt = undefined;
+    return;
+  }
+  if (url !== paymentLink) {
+    paymentLink = url;
+    redirectAt = Date.now() + 5000;
+  }
+  if (redirectAt != null && Date.now() >= redirectAt) {
+    redirectAt = undefined;
+    location.assign(paymentLink);
+  }
+}
+function setPaymentLink(link) {
+  const pay = el("pay");
+  let url;
+  if (link) {
+    try {
+      url = new URL(link);
+    } catch {
+      // Keep the button visible when the payment provider returns an invalid URL.
+    }
+  }
+  const available = url?.protocol === "https:" && !url.username && !url.password;
+  pay.setAttribute("aria-disabled", String(!available));
+  el("copyLink").disabled = !available;
+  if (available) pay.href = url.href;
+  else pay.removeAttribute("href");
+}
+function stop() {
+  stopped = true;
+  clearInterval(timer);
+  el("connection").textContent = "";
+  socket.close();
+}
+function update(data) {
+  if (data.order_no !== no || data.revision < (order?.revision ?? 0)) return;
+  order = data;
+  offset = data.server_time - Date.now();
+  setPhase(phases[data.status], pendingPhases.includes(data.status));
+  el("amount").textContent = String(data.amount);
+  setPaymentLink(["placed", "expired"].includes(data.status) ? data.pay_url : null);
+  updateClock();
+  if (["paid", "failed"].includes(data.status)) stop();
+}
+function connect() {
+  if (stopped) return;
+  socket = new WebSocket((["https:", "wss:"].includes(api.protocol) ? "wss://" : "ws://") + api.host + "/ws");
+  socket.onopen = () => socket.send(JSON.stringify({
+    id: Array.from(crypto.getRandomValues(new Uint8Array(16)), byte => byte.toString(16).padStart(2, "0")).join(""),
+    type: "cashier.subscribe",
+    ts: Date.now(),
+    data: {
+      order_no: no
+    }
+  }));
+  socket.onmessage = ({data}) => {
+    const msg = JSON.parse(data);
+    if (msg.type === "cashier.unavailable") {
+      setPhase("订单不存在");
+      setPaymentLink(null);
+      el("amount").textContent = "—";
+      el("remaining").textContent = "--:--";
+      stop();
+      return;
+    }
+    if (msg.type === "cashier.snapshot" || msg.type === "cashier.update") {
+      delay = 1000;
+      el("connection").textContent = "";
+      update(msg.data);
+    }
+  };
+  socket.onclose = () => {
+    if (!stopped) {
+      el("connection").textContent = "正在重新连接";
+      setTimeout(connect, delay);
+      delay = Math.min(15000, delay * 2);
+    }
+  };
+}
+if (/^GR[a-f0-9]{32}$/.test(no)) {
+  el("number").textContent = "订单号 " + no;
+  el("copyNumber").disabled = false;
+  async function copy(value, label) {
+    try {
+      await navigator.clipboard.writeText(value);
+      el("feedback").textContent = label + "已复制";
+    } catch {
+      el("feedback").textContent = "复制失败，请长按复制";
+    }
+  }
+  el("copyNumber").onclick = () => copy(no, "订单号");
+  el("copyLink").onclick = () => copy(el("pay").href, "支付链接");
+  connect();
+  timer = setInterval(updateClock, 1000);
+} else {
+  setPhase("无效订单号");
+}
+  </script>
+</body>
+</html>
