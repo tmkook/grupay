@@ -86,6 +86,12 @@ try {
     assert.equal(createHash('sha256').update(apk).digest('hex'), release.sha256);
   }
   console.log('PASS: release pointer, versioned APK and checksum');
+  for (const [path, expected] of [['/docs/guide.md', '系统使用说明'], ['/docs/merchant.md', '商户对接']]) {
+    const doc = await mf.dispatchFetch('http://local' + path);
+    assert.equal(doc.status, 200);
+    assert.ok((await doc.text()).includes(expected));
+  }
+  console.log('PASS: guide and merchant documents are served as static assets');
   // A cold cron wake must repair legacy deadlines and schedule unopened orders without a connected device.
   const createdAt = Date.now() - 599000;
   const legacy = await db.prepare(`INSERT INTO orders(order_no,merchant_order_no,merchant_id,amount,product_code,created_at,updated_at)
